@@ -1,5 +1,6 @@
 const express = require("express");
 // pass auth to protect route
+const normalize = require("normalize-url");
 const auth = require("../../middleware/auth");
 const { check, validationResult } = require("express-validator");
 
@@ -48,6 +49,7 @@ router.post(
       return res.status(400).json({ errors: errors.array });
     }
 
+    // Get info from request body and store in vars
     const {
       company,
       website,
@@ -64,24 +66,30 @@ router.post(
     } = req.body;
 
     // Build profile object
-    const profileFields = {};
-    profileFields.user = req.user.id;
-    if (company) profileFields.company = company;
-    if (website) profileFields.website = website;
-    if (location) profileFields.location = location;
-    if (company) profileFields.company = bio;
-    if (status) profileFields.status = status;
-    if (githubusername) profileFields.githubusername = githubusername;
-    if (skills) {
-      profileFields.skills = skills.split(",").map((skill) => skill.trim());
+    const profileFields = {
+      user: req.user.id,
+      company,
+      location,
+      website:
+        website && website !== ""
+          ? normalize(website, { forceHttps: true })
+          : "",
+      bio,
+      skills: Array.isArray(skills)
+        ? skills
+        : skills.split(",").map((skill) => " " + skill.trim()),
+      status,
+      githubusername,
+    };
+
+    // Build social object and add to profileFields
+    const socialfields = { youtube, twitter, instagram, linkedin, facebook };
+
+    for (const [key, value] of Object.entries(socialfields)) {
+      if (value && value.length > 0)
+        socialfields[key] = normalize(value, { forceHttps: true });
     }
-    // Build socials object
-    profileFields.social = {};
-    if (youtube) profileFields.social.youtube = youtube;
-    if (twitter) profileFields.social.youtube = twitter;
-    if (facebook) profileFields.social.youtube = facebook;
-    if (linkedin) profileFields.social.youtube = linkedin;
-    if (instagram) profileFields.social.youtube = instagram;
+    profileFields.social = socialfields;
 
     try {
       let profile = await Profile.findOne({ user: req.user.id });
